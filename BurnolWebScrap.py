@@ -9,18 +9,19 @@ options.add_argument("start-maximized")
 
 options.add_experimental_option("excludeSwitches", ["enable-automation"])
 options.add_experimental_option('useAutomationExtension', False)
-driver = webdriver.Chrome(options=options, executable_path=r"C:\Users\DIPRAJ\Programming\adclick_bot\chromedriver.exe")
+driver = webdriver.Chrome(options=options)#when u call Chrome like this
+#Selenium excepts chromedriver to already exist and match with your chrome version
 
-stealth(driver,
+"""stealth(driver,
         languages=["en-US", "en"],
         vendor="Google Inc.",
         platform="Win32",
         webgl_vendor="Intel Inc.",
         renderer="Intel Iris OpenGL Engine",
         fix_hairline=True,
-        )
+        )"""
 
-url = "https://bot.sannysoft.com/"
+url = "https://www.morepen.com/"
 driver.get(url)
 time.sleep(5)
 driver.quit()
