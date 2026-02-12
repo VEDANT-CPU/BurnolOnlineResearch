@@ -45,7 +45,7 @@ def create_driver():
 
 #driver.quit()
 def scrape_page(driver):
-    url = "https://www.morepen.com/"
+    url = "https://www.morepen.com/api"
     driver.get(url)
     html_content = driver.page_source
     print("Page Source Length: ", len(html_content))
@@ -53,7 +53,7 @@ def scrape_page(driver):
     time.sleep(uniform(2,4))
     return html_content
 
-def extract_internal_links(html_content, base_url="https://www.morepen.com"):
+def extract_internal_links(html_content, base_url="https://www.morepen.com/api"):
     ScrapSoup = BeautifulSoup(html_content, "html.parser")#Entire page organized into DOM tree
     #for searching and retrieval of content. Tags which are themselves subtrees in this.
     links = set() #To ensure there are no duplicates
@@ -85,7 +85,7 @@ def extract_product(html_content, param_url):
         "About": "",
         "use": "",
     }
-    
+
 
 def main():
     driver = create_driver()
