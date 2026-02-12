@@ -2,7 +2,11 @@ from selenium import webdriver
 from selenium_stealth import stealth
 from selenium.webdriver.chrome.service import Service
 from webdriver_manager.chrome import ChromeDriverManager
+from random import uniform
 import time
+from bs4 import BeautifulSoup
+import requests
+from urllib.parse import urljoin, urlparse
 
 
 def create_driver():
@@ -46,10 +50,48 @@ def scrape_page(driver):
     html_content = driver.page_source
     print("Page Source Length: ", len(html_content))
 
+    time.sleep(uniform(2,4))
+    return html_content
+
+def extract_internal_links(html_content, base_url="https://www.morepen.com"):
+    ScrapSoup = BeautifulSoup(html_content, "html.parser")#Entire page organized into DOM tree
+    #for searching and retrieval of content. Tags which are themselves subtrees in this.
+    links = set() #To ensure there are no duplicates
+
+    for x in ScrapSoup.find_all("a",href=True):
+        link_href = x["href"]
+
+        target_url = urljoin(base_url, link_href)
+        parsed_url = urlparse(target_url)#converts the target_url which is ordinary url
+        #to a dictionary like structure having 6 attributes
+        if parsed_url.netloc.endswith("morepen.com"):
+            links.add(target_url.split("#")[0])
+    return list(links)
+
+def extract_product_links(links):
+    product_links = []
+
+    for link in links:
+        parsed = urlparse(link)
+        if "product" in parsed.path.lower() or "burnol" in parsed.path.lower():
+            product_links.append(link)#for lists append() and insert() for sets add()
+    return list(product_links)
+
+def extract_product(html_content, param_url):
+    Mysoup = BeautifulSoup(html_content, "html.parser")
+    data = {
+        "url": param_url,
+        "Prod_name": "",
+        "About": "",
+        "use": "",
+    }
+    
+
 def main():
     driver = create_driver()
-    html_var = driver.page_source
-
+    html_content = scrape_page(driver)
+    links = extract_internal_links(html_content)
+    print("No. of links: ", len(links))
 
     try:
         print("navigator.webdriver:", driver.execute_script("return navigator.webdriver"))
