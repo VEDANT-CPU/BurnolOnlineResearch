@@ -110,6 +110,22 @@ def json_ld(soup):
             continue
     return None
 
+def section_after_heading(soup, heading_keywords):
+    headings=["h1","h2","h3","strong","b","h4"]
+    head_tags = soup.find_all(headings)
+    for head in head_tags:
+        tag_text=(head.get_text(" ",strip=True) or "").lower()
+        for kw in heading_keywords:
+            if kw in tag_text:
+                nxt_tag = head.find_next_sibling()
+                add_part = []
+                while nxt_tag and nxt_tag.name not in headings:
+                    if nxt_tag.get_text(strip=True):
+                        add_part.append(nxt_tag.get_text(" ",strip=True))
+                        nxt_tag = nxt_tag.find_next_sibling()
+                return " ".join(add_part).strip()
+    return ""
+
 def extract_product(html_content, param_url):
     Mysoup = BeautifulSoup(html_content, "html.parser")
     data = {
