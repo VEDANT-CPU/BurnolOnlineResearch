@@ -4,9 +4,14 @@ from selenium.webdriver.chrome.service import Service
 from webdriver_manager.chrome import ChromeDriverManager
 from random import uniform
 import time
+import os
+import csv
+import requests
 from bs4 import BeautifulSoup
 import json
 from urllib.parse import urljoin, urlparse
+from pathlib import Path
+import pandas as pd
 
 base_url="https://morepen.com"
 api_url="https://morepen.com/api"
@@ -132,7 +137,7 @@ def extract_product(driver, product_url):
     Returns dictionary with common fields.
     """
     driver.get(product_url)
-    polite_sleep(2.0, 4.0)
+    time.sleep(2.0, 4.0)
     soup = BeautifulSoup(driver.page_source, "html.parser")
 
     data = {
@@ -147,7 +152,7 @@ def extract_product(driver, product_url):
     }
 
     # 1) Try structured JSON-LD first (best source if present)
-    jld = find_json_ld(soup)
+    jld = json_ld(soup)
     if jld:
         data["product_name"] = jld.get("name") or jld.get("headline") or ""
         data["short_description"] = jld.get("description", "") or ""
@@ -169,9 +174,9 @@ def extract_product(driver, product_url):
         data["detailed_description"] = " ".join(paragraphs[:4])
 
     # Section-based extraction using keywords (composition / ingredients / dosage / indication / usage)
-    data["composition"] = extract_section_after_heading(soup, ["composition", "ingredients", "active ingredient", "active ingredients"])
-    data["usage_indications"] = extract_section_after_heading(soup, ["indication", "uses", "usage", "indications"])
-    data["dosage"] = extract_section_after_heading(soup, ["dosage", "direction", "directions", "how to use", "dose"])
+    data["composition"] = section_after_heading(soup, ["composition", "ingredients", "active ingredient", "active ingredients"])
+    data["usage_indications"] = section_after_heading(soup, ["indication", "uses", "usage", "indications"])
+    data["dosage"] = section_after_heading(soup, ["dosage", "direction", "directions", "how to use", "dose"])
 
     # As a fallback, find any lists that might contain composition bullets
     if not data["composition"]:
@@ -223,8 +228,8 @@ def main():
     driver = create_driver()
     try:
         # start at the API page explicitly
-        html = scrape_page(driver, API_PAGE)
-        links = extract_internal_links(html, base_url=API_PAGE)
+        html = scrape_page(driver, api_url)
+        links = extract_internal_links(html, base_url=api_url)
         print("All internal links extracted from API page:", len(links))
 
         product_links, pdf_links = classify_links(links)
@@ -252,6 +257,24 @@ def main():
     finally:
         driver.quit()
 
+def save_dicts_to_csv(dict_list, filepath, fieldnames=None):
+    Path(filepath).parent.mkdir(parents=True, exist_ok=True)
+    if not dict_list:
+        print("No rows to save for", filepath); return
+    if fieldnames is None:
+        # infer keys from first dict
+        fieldnames = list(dict_list[0].keys())
+    with open(filepath, "w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer.writeheader()
+        for row in dict_list:
+            writer.writerow({k: (v if v is not None else "") for k,v in row.items()})
+
+# alternative (pandas)
+def save_dicts_to_csv_pandas(dict_list, filepath):
+    df = pd.DataFrame(dict_list)
+    Path(filepath).parent.mkdir(parents=True, exist_ok=True)
+    df.to_csv(filepath, index=False, encoding="utf-8")
 
 if __name__ == "__main__":
     main()
