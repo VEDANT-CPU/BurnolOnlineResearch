@@ -5,9 +5,13 @@ from webdriver_manager.chrome import ChromeDriverManager
 from random import uniform
 import time
 from bs4 import BeautifulSoup
-import requests
+import json
 from urllib.parse import urljoin, urlparse
 
+base_url="https://morepen.com"
+api_url="https://morepen.com/api"
+domain="morepen.com"
+prod_keywords=["products", "api", "formulations", "product","productcollection", "dossier"]
 
 def create_driver():
     options = webdriver.ChromeOptions()
@@ -54,6 +58,7 @@ def scrape_page(driver):
     return html_content
 
 def extract_internal_links(html_content, base_url="https://www.morepen.com/"):
+    #To return a list of absolute url from the rendered html
     ScrapSoup = BeautifulSoup(html_content, "html.parser")#Entire page organized into DOM tree
     #for searching and retrieval of content. Tags which are themselves subtrees in this.
     links = set() #To ensure there are no duplicates
@@ -64,9 +69,9 @@ def extract_internal_links(html_content, base_url="https://www.morepen.com/"):
         target_url = urljoin(base_url, link_href)
         parsed_url = urlparse(target_url)#converts the target_url which is ordinary url
         #to a dictionary like structure having 6 attributes
-        if parsed_url.netloc.endswith("morepen.com"):
+        if parsed_url.netloc.endswith(domain):
             links.add(target_url.split("#")[0])
-    return list(links)
+    return list(links) #sorted(links)
 
 def classify_links(links):
     product_links = []
@@ -77,9 +82,33 @@ def classify_links(links):
         path = parsed.path.lower()
         if path.endswith(".pdf"):
             pdf_links.append(link)
-        elif "product" in path or "api" in path:
+            continue
+        if "api" in path or path.beginswith("/api"):
             product_links.append(link)
-    return product_links, pdf_links #This will return a tuple.
+            continue
+        if "product" in path or "/products/" in path:
+            product_links.append(link)
+            continue
+        
+    return set(product_links), set(pdf_links) #This will return a tuple.
+
+def json_ld(soup):
+    for scrip in soup.find_all("script", type="application/ld+json"):
+        try:
+            text=scrip.string
+            if not text:
+                return
+            data=json.loads(text.strip())#.strip() to remove whitespace and \n char from start and end
+            if isinstance(data, list):
+                for item in data:
+                    if item.get("@type").lower() in prod_keywords:
+                        return item
+            elif isinstance(data, dict):
+                if data.get("@type").lower() in prod_keywords:
+                    return data
+        except Exception:
+            continue
+    return None
 
 def extract_product(html_content, param_url):
     Mysoup = BeautifulSoup(html_content, "html.parser")
@@ -89,6 +118,8 @@ def extract_product(html_content, param_url):
         "About": "",
         "use": "",
     }
+
+
 
 
 def main():
