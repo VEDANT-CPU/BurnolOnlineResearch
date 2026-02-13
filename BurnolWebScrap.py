@@ -126,14 +126,24 @@ def section_after_heading(soup, heading_keywords):
                 return " ".join(add_part).strip()
     return ""
 
-def extract_product(html_content, param_url):
-    Mysoup = BeautifulSoup(html_content, "html.parser")
+def extract_product(driver, param_url):
+    """Visit a corporate page then extract the fields
+    then store it in a dictionary"""
+    driver.get(param_url)
+    time.sleep(2.0, 4.0)
+    Mysoup = BeautifulSoup(param_url, "html.parser")
     data = {
         "url": param_url,
         "Prod_name": "",
-        "About": "",
-        "use": "",
+        "Description": "",
+        "usage": "",
+        "Active Product Ingredient": "",
     }
+
+    product_site_jld = json_ld(Mysoup)
+    if product_site_jld:
+        data["Prod_name"]=product_site_jld.get()
+
 
 
 
