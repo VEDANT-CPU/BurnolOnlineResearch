@@ -53,7 +53,7 @@ def scrape_page(driver):
     time.sleep(uniform(2,4))
     return html_content
 
-def extract_internal_links(html_content, base_url="https://www.morepen.com/api"):
+def extract_internal_links(html_content, base_url="https://www.morepen.com/"):
     ScrapSoup = BeautifulSoup(html_content, "html.parser")#Entire page organized into DOM tree
     #for searching and retrieval of content. Tags which are themselves subtrees in this.
     links = set() #To ensure there are no duplicates
@@ -68,14 +68,18 @@ def extract_internal_links(html_content, base_url="https://www.morepen.com/api")
             links.add(target_url.split("#")[0])
     return list(links)
 
-def extract_product_links(links):
+def classify_links(links):
     product_links = []
+    pdf_links = []
 
     for link in links:
         parsed = urlparse(link)
-        if "product" in parsed.path.lower() or "burnol" in parsed.path.lower():
-            product_links.append(link)#for lists append() and insert() for sets add()
-    return list(product_links)
+        path = parsed.path.lower()
+        if path.endswith(".pdf"):
+            pdf_links.append(link)
+        elif "product" in path or "api" in path:
+            product_links.append(link)
+    return product_links, pdf_links #This will return a tuple.
 
 def extract_product(html_content, param_url):
     Mysoup = BeautifulSoup(html_content, "html.parser")
