@@ -45,7 +45,7 @@ def create_driver():
 
 #driver.quit()
 def scrape_page(driver):
-    url = "https://www.morepen.com/api"
+    url = "https://www.morepen.com/"
     driver.get(url)
     html_content = driver.page_source
     print("Page Source Length: ", len(html_content))
