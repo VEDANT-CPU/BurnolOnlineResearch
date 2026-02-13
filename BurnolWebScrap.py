@@ -126,43 +126,132 @@ def section_after_heading(soup, heading_keywords):
                 return " ".join(add_part).strip()
     return ""
 
-def extract_product(driver, param_url):
-    """Visit a corporate page then extract the fields
-    then store it in a dictionary"""
-    driver.get(param_url)
-    time.sleep(2.0, 4.0)
-    Mysoup = BeautifulSoup(param_url, "html.parser")
+def extract_product(driver, product_url):
+    """
+    Visit a corporate product page and extract robust fields.
+    Returns dictionary with common fields.
+    """
+    driver.get(product_url)
+    polite_sleep(2.0, 4.0)
+    soup = BeautifulSoup(driver.page_source, "html.parser")
+
     data = {
-        "url": param_url,
-        "Prod_name": "",
-        "Description": "",
-        "usage": "",
-        "Active Product Ingredient": "",
+        "url": product_url,
+        "product_name": "",
+        "short_description": "",
+        "detailed_description": "",
+        "composition": "",
+        "usage_indications": "",
+        "dosage": "",
+        "other_info": ""
     }
 
-    product_site_jld = json_ld(Mysoup)
-    if product_site_jld:
-        data["Prod_name"]=product_site_jld.get()
+    # 1) Try structured JSON-LD first (best source if present)
+    jld = find_json_ld(soup)
+    if jld:
+        data["product_name"] = jld.get("name") or jld.get("headline") or ""
+        data["short_description"] = jld.get("description", "") or ""
+        # price/offers if present
+        offers = jld.get("offers") or {}
+        if isinstance(offers, dict):
+            data["other_info"] += f"price:{offers.get('price','')} {offers.get('priceCurrency','')}; "
+    # 2) Fallback to DOM scraping
+    if not data["product_name"]:
+        # Prefer a product container heading (h1/h2) inside main content
+        h1 = soup.find(["h1", "h2"], recursive=True)
+        if h1:
+            data["product_name"] = h1.get_text(" ", strip=True)
+
+    # Collect longer paragraphs as descriptions
+    paragraphs = [p.get_text(" ", strip=True) for p in soup.find_all("p") if len(p.get_text(strip=True)) > 30]
+    if paragraphs:
+        data["short_description"] = paragraphs[0]
+        data["detailed_description"] = " ".join(paragraphs[:4])
+
+    # Section-based extraction using keywords (composition / ingredients / dosage / indication / usage)
+    data["composition"] = extract_section_after_heading(soup, ["composition", "ingredients", "active ingredient", "active ingredients"])
+    data["usage_indications"] = extract_section_after_heading(soup, ["indication", "uses", "usage", "indications"])
+    data["dosage"] = extract_section_after_heading(soup, ["dosage", "direction", "directions", "how to use", "dose"])
+
+    # As a fallback, find any lists that might contain composition bullets
+    if not data["composition"]:
+        ul = soup.find("ul")
+        if ul:
+            items = [li.get_text(" ", strip=True) for li in ul.find_all("li")]
+            if items and len(" ".join(items)) > 30:
+                data["composition"] = "; ".join(items[:10])
+
+    # Clean whitespace
+    for k, v in data.items():
+        if isinstance(v, str):
+            data[k] = " ".join(v.split())
+
+    return data
 
 
+def download_pdf(pdf_url, save_dir="pdfs"):
+    """
+    Download PDF with requests and save under save_dir. Returns filename or None.
+    """
+    os.makedirs(save_dir, exist_ok=True)
+    try:
+        resp = requests.get(pdf_url, timeout=20)
+        resp.raise_for_status()
+        filename = pdf_url.split("/")[-1].split("?")[0] or "download.pdf"
+        path = os.path.join(save_dir, filename)
+        with open(path, "wb") as f:
+            f.write(resp.content)
+        print("[PDF] downloaded:", path)
+        return path
+    except Exception as e:
+        print("[PDF] failed:", pdf_url, e)
+        return None
 
+
+def save_products_to_csv(products, filename="products_morepen.csv"):
+    keys = ["url", "product_name", "short_description", "detailed_description", "composition", "usage_indications", "dosage", "other_info"]
+    with open(filename, "w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=keys)
+        writer.writeheader()
+        for p in products:
+            row = {k: p.get(k, "") for k in keys}
+            writer.writerow(row)
+    print("[Saved CSV]", filename)
 
 
 def main():
     driver = create_driver()
-    html_content = scrape_page(driver)
-    links = extract_internal_links(html_content)
-    print("No. of links: ", len(links))
-
     try:
-        print("navigator.webdriver:", driver.execute_script("return navigator.webdriver"))
-        print("navigator.userAgent: ", driver.execute_script("return navigator.userAgent"))
-        ps = driver.page_source
-        print("Page source length: ", len(ps))
-        print("Contains Burnol? ", "Burnol" in ps)
+        # start at the API page explicitly
+        html = scrape_page(driver, API_PAGE)
+        links = extract_internal_links(html, base_url=API_PAGE)
+        print("All internal links extracted from API page:", len(links))
+
+        product_links, pdf_links = classify_links(links)
+        print("Product candidates:", len(product_links))
+        print("PDF candidates:", len(pdf_links))
+
+        # Extract product info
+        products = []
+        for idx, p_url in enumerate(product_links, start=1):
+            try:
+                print(f"[{idx}/{len(product_links)}] Processing product:", p_url)
+                pdata = extract_product(driver, p_url)
+                products.append(pdata)
+            except Exception as e:
+                print("product extraction failed for", p_url, e)
+
+        # Download found PDFs
+        for pdf in pdf_links:
+            download_pdf(pdf)
+
+        # Save data
+        if products:
+            save_products_to_csv(products)
+
     finally:
-        driver.quit()# Terminate the webdriver session
+        driver.quit()
 
 
 if __name__ == "__main__":
-     main()
+    main()
