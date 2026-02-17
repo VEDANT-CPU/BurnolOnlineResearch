@@ -54,7 +54,7 @@ def create_driver():
 
 #driver.quit()
 def scrape_page(driver):
-    url = "https://www.morepen.com/"
+    url = "https://www.morepen.com/api"
     driver.get(url)
     html_content = driver.page_source
     print("Page Source Length: ", len(html_content))
@@ -228,7 +228,7 @@ def main():
     driver = create_driver()
     try:
         # start at the API page explicitly
-        html = scrape_page(driver, api_url)
+        html = scrape_page(driver)
         links = extract_internal_links(html, base_url=api_url)
         print("All internal links extracted from API page:", len(links))
 
